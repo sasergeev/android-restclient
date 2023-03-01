@@ -1,5 +1,5 @@
 # android-rest-client
-Simple async REST client in using declarative style with. Essentially as wrapper of RestTemplate by Spring framework for Android.
+Simple async REST client in using declarative style. Essentially as wrapper of RestTemplate by Spring framework for Android.
 
 ## Add the JitPack repository to your build file
 ```
