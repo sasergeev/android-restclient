@@ -45,7 +45,7 @@ afterEvaluate {
         publications {
             release(MavenPublication) {
                 from components.release
-                groupId = 'com.github.saserg'
+                groupId = 'com.github.sasergeev'
                 artifactId = 'restclient'
                 version = '1.0.0'
             }
