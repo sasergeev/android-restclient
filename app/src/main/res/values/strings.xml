@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Rest Client</string>
+    <string name="error">Error</string>
+    <string name="percent_text">%</string>
+    <string name="zero_text">0</string>
+    <string name="request">Request</string>
+    <string name="download">Download</string>
+    <string name="empty_list">Empty List</string>
+    <string name="paging_list">Paging List</string>
+</resources>

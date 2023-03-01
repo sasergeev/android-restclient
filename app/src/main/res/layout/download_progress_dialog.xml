@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="20dp">
+    <ProgressBar
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:progress="@android:integer/config_shortAnimTime"
+        android:indeterminateTint="@android:color/darker_gray"
+        android:id="@+id/download_progress"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="10dp"
+        android:layout_marginTop="10dp"
+        android:indeterminate="true"
+        android:max="100"
+        android:progressDrawable="@drawable/gradient_progress"
+        style="?android:attr/progressBarStyleHorizontal"/>
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/download_percent"
+        android:layout_marginBottom="20dp"
+        android:textColor="@android:color/darker_gray"
+        android:layout_below="@id/download_progress"
+        android:layout_centerHorizontal="true"
+        android:text="@string/zero_text"/>
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@android:color/darker_gray"
+        android:layout_below="@id/download_progress"
+        android:layout_toEndOf="@id/download_percent"
+        android:text="@string/percent_text"/>
+</RelativeLayout>
