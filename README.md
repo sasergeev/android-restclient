@@ -37,7 +37,7 @@ private void fetchData(String id) {
                 //.url("https://your-base-backend-url/") |
                 //.uri("api/v1/{id}")                    | instead of above
                 //.get(id)
-                .auth("your_jwt_toke") // for auth calling
+                .auth("your_jwt_token") // for auth calling
                 .ssl(getResources().openRawResource(R.raw.your_public_key)) // for https calling|
                 .success((object, headers, status) -> {
                   // handle response here: pojo object, headers and status code 2xx
@@ -47,3 +47,5 @@ private void fetchData(String id) {
                 });
     }
 ```
+-------------------------------
+More samples in example package
