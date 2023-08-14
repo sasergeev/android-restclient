@@ -613,7 +613,7 @@ public final class RestClientBuilder<T extends Serializable> {
 
     private void process(ResponseEntity<Resource> responseEntity) {
         try {
-            MediaType mediaType = responseEntity.getHeaders().getContentType();
+            HttpHeaders httpHeaders = responseEntity.getHeaders();
             int size = (int) responseEntity.getBody().contentLength();
             InputStream inputStream = new BufferedInputStream(responseEntity.getBody().getInputStream(), size);
             ByteArrayOutputStream buffer = new ByteArrayOutputStream();
@@ -629,7 +629,7 @@ public final class RestClientBuilder<T extends Serializable> {
             inputStream.close();
             if (total == size) {
                 if (onFinished != null)
-                    handler.post(() -> onFinished.done(buffer, mediaType.toString()));
+                    handler.post(() -> onFinished.done(buffer, httpHeaders));
             } else {
                 if (onError != null)
                     onError.error("Error while loading data...", responseEntity.getHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);

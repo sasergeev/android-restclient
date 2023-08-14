@@ -15,6 +15,8 @@ import android.widget.Toast;
 import com.github.sasergeev.example.pojo.UserData;
 import com.github.sasergeev.restclient.RestClientBuilder;
 
+import org.springframework.http.HttpHeaders;
+
 import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
 import java.util.Map;
@@ -37,6 +39,7 @@ public class MainActivity extends AppCompatActivity {
         Button listButton = findViewById(R.id.list_button);
         Button loadButton = findViewById(R.id.load_image_button);
         ImageView loadedImage = findViewById(R.id.loaded_image);
+        TextView imageDescription = findViewById(R.id.image_description);
         progressRequest = findViewById(R.id.progress_bar);
         requestButton.setOnClickListener(v -> fetchData("5", progressRequest));
         downloadButton.setOnClickListener(v -> downloadData());
@@ -150,7 +153,7 @@ public class MainActivity extends AppCompatActivity {
         RestClientBuilder.build(Class.class)
                 .url(MOCK_API_SERVER)
                 .before(() -> UI.indeterminateProgress(progress, true))
-                .done((ByteArrayOutputStream bytes, String type) -> {
+                .done((ByteArrayOutputStream bytes, HttpHeaders headers) -> {
                     Bitmap bitmap = BitmapFactory.decodeByteArray(bytes.toByteArray(), 0, bytes.size());
                     image.setImageBitmap(Bitmap.createScaledBitmap(bitmap, image.getWidth(), image.getHeight(), false));
                 })
