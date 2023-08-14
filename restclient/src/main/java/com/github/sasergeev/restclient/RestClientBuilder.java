@@ -4,7 +4,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
-import android.util.Log;
 import androidx.core.os.HandlerCompat;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
@@ -24,6 +23,7 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,6 +47,7 @@ public final class RestClientBuilder<T extends Serializable> {
     private OnPreExecute onPreExecute;
     private OnPostExecute onPostExecute;
     private OnDownload onDownload;
+    private OnFinished onFinished;
     private final Class<T> responseType;
     private String queryUrl = "";
     private final RestTemplate restTemplate;
@@ -176,6 +177,14 @@ public final class RestClientBuilder<T extends Serializable> {
      */
     public RestClientBuilder<T> done(OnDownload onDownload) {
         this.onDownload = onDownload;
+        return this;
+    }
+
+    /**
+     * Handle file path and content type
+     */
+    public RestClientBuilder<T> done(OnFinished onFinished) {
+        this.onFinished = onFinished;
         return this;
     }
 
@@ -387,7 +396,6 @@ public final class RestClientBuilder<T extends Serializable> {
 
     private void handleMessage(Message message) {
         handler.post(() -> {
-            Log.e("REQUEST", "Result: " + message.getData().getInt("Status"));
             HttpStatus httpStatus = HttpStatus.valueOf(message.getData().getInt("Status"));
             if (httpStatus.is2xxSuccessful()) {
                 instance = responseType.cast(message.getData().getSerializable("Object"));
@@ -534,6 +542,34 @@ public final class RestClientBuilder<T extends Serializable> {
         });
     }
 
+    /**
+     * Download file with some params
+     */
+    public void download(Object... params) {
+        executorService.execute(() -> {
+            if (onPreExecute != null)
+                handler.post(() -> onPreExecute.before());
+            HttpEntity<?> httpEntity = new HttpEntity<>(httpHeaders);
+            ResponseEntity<Resource> responseEntity;
+            try {
+                responseEntity = restTemplate.exchange(queryUrl, HttpMethod.GET, httpEntity, Resource.class, params);
+                if (onExecute != null)
+                    handler.post(() -> onExecute.execute());
+                process(responseEntity);
+            } catch (HttpClientErrorException | HttpServerErrorException e) {
+                if (onError != null)
+                    handler.post(() -> onError.error(e.getMessage(), e.getResponseHeaders(), e.getStatusCode()));
+            } catch (ResourceAccessException e) {
+                if (onError != null)
+                    handler.post(() -> onError.error("Network error connection", (HttpHeaders) message.getData().getSerializable("Headers"), HttpStatus.SERVICE_UNAVAILABLE));
+            } finally {
+                if (onPostExecute != null)
+                    handler.post(() -> onPostExecute.finish());
+                executorService.shutdown();
+            }
+        });
+    }
+
     private void process(ResponseEntity<Resource> responseEntity, String filePath) {
         try {
             MediaType mediaType = responseEntity.getHeaders().getContentType();
@@ -569,6 +605,34 @@ public final class RestClientBuilder<T extends Serializable> {
             } else {
                 if (onError != null)
                     onError.error("Error while saving file...", responseEntity.getHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void process(ResponseEntity<Resource> responseEntity) {
+        try {
+            MediaType mediaType = responseEntity.getHeaders().getContentType();
+            int size = (int) responseEntity.getBody().contentLength();
+            InputStream inputStream = new BufferedInputStream(responseEntity.getBody().getInputStream(), size);
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            byte[] data = new byte[4096];
+            int count;
+            int total = 0;
+            while ((count = inputStream.read(data, 0, data.length)) != -1) {
+                buffer.write(data, 0, count);
+                total += count;
+            }
+            buffer.flush();
+            buffer.close();
+            inputStream.close();
+            if (total == size) {
+                if (onFinished != null)
+                    handler.post(() -> onFinished.done(buffer, mediaType.toString()));
+            } else {
+                if (onError != null)
+                    onError.error("Error while loading data...", responseEntity.getHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
             }
         } catch (IOException e) {
             e.printStackTrace();

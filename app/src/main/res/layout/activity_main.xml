@@ -37,4 +37,16 @@
         android:layout_height="wrap_content"
         android:text="@string/paging_list"/>
 
+    <Button
+        android:id="@+id/load_image_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/load_image"/>
+
+    <ImageView
+        android:id="@+id/loaded_image"
+        android:layout_width="250dp"
+        android:layout_height="250dp"
+        android:scaleType="centerCrop"/>
+
 </LinearLayout>
