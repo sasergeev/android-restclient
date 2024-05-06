@@ -4,7 +4,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+
 import androidx.core.os.HandlerCompat;
+
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpBasicAuthentication;
@@ -30,9 +32,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+
 import static java.util.concurrent.Executors.newCachedThreadPool;
 
 /**
@@ -292,6 +296,26 @@ public final class RestClientBuilder<T extends Serializable> {
     }
 
     /**
+     * POST-request for API with some files
+     */
+    public RestClientBuilder<T> post(String key, Collection<ByteArrayResource> resources, Object... params) {
+        executorService.execute(() -> {
+            if (onPreExecute != null)
+                handler.post(() -> onPreExecute.before());
+            MultiValueMap<String, Object> requestBody = new LinkedMultiValueMap<>();
+            this.httpHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
+            for (ByteArrayResource resource : resources) {
+                if (resource != null) {
+                    requestBody.add(key, resources);
+                }
+            }
+            HttpEntity<MultiValueMap<String, Object>> httpEntity = new HttpEntity<>(requestBody, httpHeaders);
+            postExecute(httpEntity, params);
+        });
+        return this;
+    }
+
+    /**
      * PUT-request for API with JSON-body and params
      */
     public RestClientBuilder<T> put(Map<String, Object> body, Object... params) {
@@ -358,6 +382,26 @@ public final class RestClientBuilder<T extends Serializable> {
             }
             HttpEntity<MultiValueMap<String, Object>> httpEntity = new HttpEntity<>(requestBody, httpHeaders);
             putExecute(httpEntity);
+        });
+        return this;
+    }
+
+    /**
+     * PUT-request for API with some files
+     */
+    public RestClientBuilder<T> put(String key, Collection<ByteArrayResource> resources, Object... params) {
+        executorService.execute(() -> {
+            if (onPreExecute != null)
+                handler.post(() -> onPreExecute.before());
+            MultiValueMap<String, Object> requestBody = new LinkedMultiValueMap<>();
+            this.httpHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
+            for (ByteArrayResource resource : resources) {
+                if (resource != null) {
+                    requestBody.add(key, resources);
+                }
+            }
+            HttpEntity<MultiValueMap<String, Object>> httpEntity = new HttpEntity<>(requestBody, httpHeaders);
+            putExecute(httpEntity, params);
         });
         return this;
     }
