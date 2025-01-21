@@ -1,29 +1,40 @@
 package com.github.sasergeev.example;
 
+import static com.github.sasergeev.example.APIUtil.fetchContracts;
+
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+
+import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Looper;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.github.sasergeev.example.pojo.Contract;
 import com.github.sasergeev.example.pojo.UserData;
+import com.github.sasergeev.restclient.RestClient;
 import com.github.sasergeev.restclient.RestClientBuilder;
 
 import org.springframework.http.HttpHeaders;
 
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
-    private TextView textView;
+    private TextView textData, textResult;
     private ProgressBar progressBar;
     private TextView progressText;
     private AlertDialog alertDialog;
@@ -33,18 +44,22 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        textView = findViewById(R.id.data);
+        textData = findViewById(R.id.data);
+        textResult = findViewById(R.id.result);
         Button requestButton = findViewById(R.id.fetch_button);
         Button downloadButton = findViewById(R.id.download_button);
         Button listButton = findViewById(R.id.list_button);
         Button loadButton = findViewById(R.id.load_image_button);
+        Button finishButton = findViewById(R.id.finish_button);
         ImageView loadedImage = findViewById(R.id.loaded_image);
         TextView imageDescription = findViewById(R.id.image_description);
         progressRequest = findViewById(R.id.progress_bar);
-        requestButton.setOnClickListener(v -> fetchData("5", progressRequest));
+        //requestButton.setOnClickListener(v -> fetchData("5", progressRequest));
+        requestButton.setOnClickListener(v -> fetchData(this));
         downloadButton.setOnClickListener(v -> downloadData());
         loadButton.setOnClickListener(v -> loadImage(loadedImage, progressRequest));
         listButton.setOnClickListener(v -> startActivity(new Intent(this, ListActivity.class)));
+        finishButton.setOnClickListener(v -> finish());
     }
 
     // Sample code for GET-request to fetch list of objects
@@ -56,7 +71,7 @@ public class MainActivity extends AppCompatActivity {
                 .get()
                 .before(() -> UI.indeterminateProgress(progress, true))
                 .finish(() -> UI.indeterminateProgress(progress, false))
-                .success((object, headers, status) -> textView.setText("Count objects: " + object.length))
+                .success((object, headers, status) -> textData.setText("Count objects: " + object.length))
                 .error((error, headers, status) -> Toast.makeText(MainActivity.this,
                         "Error message: " + error + " " + "Status server: " + status, Toast.LENGTH_LONG).show());
     }
@@ -64,15 +79,16 @@ public class MainActivity extends AppCompatActivity {
     // Sample code for GET-request by some id to fetch object
     private void fetchData(String id, ProgressBar progress) {
         String MOCK_API_SERVER = "https://63d7676e5c4274b136f38138.mockapi.io/";
-        RestClientBuilder.build(UserData.class)
+        RestClient.build(UserData.class)
                 .url(MOCK_API_SERVER)
                 .uri("simpleapi/v1/{id}")
                 .get(id)
                 .before(() -> UI.indeterminateProgress(progress, true))
                 .finish(() -> UI.indeterminateProgress(progress, false))
-                .success((object, headers, status) -> textView.setText(object.toString()))
+                .success((object, headers, status) -> textData.setText(object.toString()))
                 .error((error, headers, status) -> Toast.makeText(MainActivity.this,
                         "Error message: " + error + " " + "Status server: " + status, Toast.LENGTH_LONG).show());
+        //textResult.setText(userData.toString());
     }
 
     // Sample code for POST-request to create object
@@ -84,7 +100,7 @@ public class MainActivity extends AppCompatActivity {
                 .post(new UserData("10", true, "Created Pojo Object"))
                 .before(() -> UI.indeterminateProgress(progress, true))
                 .finish(() -> UI.indeterminateProgress(progress, false))
-                .success((object, headers, status) -> textView.setText(String.valueOf(status.value())))
+                .success((object, headers, status) -> textData.setText(String.valueOf(status.value())))
                 .error((error, headers, status) -> Toast.makeText(MainActivity.this,
                         "Error message: " + error + " " + "Status server: " + status, Toast.LENGTH_LONG).show());
     }
@@ -102,7 +118,7 @@ public class MainActivity extends AppCompatActivity {
                 .put(jsonBody, id)
                 .before(() -> UI.indeterminateProgress(progress, true))
                 .finish(() -> UI.indeterminateProgress(progress, false))
-                .success((object, headers, status) -> textView.setText(String.valueOf(status.value())))
+                .success((object, headers, status) -> textData.setText(String.valueOf(status.value())))
                 .error((error, headers, status) -> Toast.makeText(MainActivity.this,
                         "Error message: " + error + " " + "Status server: " + status, Toast.LENGTH_LONG).show());
     }
@@ -116,7 +132,7 @@ public class MainActivity extends AppCompatActivity {
                 .delete(id)
                 .before(() -> UI.indeterminateProgress(progress, true))
                 .finish(() -> UI.indeterminateProgress(progress, false))
-                .success((object, headers, status) -> textView.setText(String.valueOf(status.value())))
+                .success((object, headers, status) -> textData.setText(String.valueOf(status.value())))
                 .error((error, headers, status) -> Toast.makeText(MainActivity.this,
                         "Error message: " + error + " " + "Status server: " + status, Toast.LENGTH_LONG).show());
     }
@@ -160,6 +176,37 @@ public class MainActivity extends AppCompatActivity {
                 .finish(() -> UI.indeterminateProgress(progress, false))
                 .error((error, headers, status) -> Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show())
                 .download();
+    }
+
+    public void fetchData(Activity activity) {
+        List<Contract> contractList = new ArrayList<>();
+        fetchContracts(activity,0, (list, item) -> {
+            int last = (int) Math.ceil((float) list.getTotal() / 50);
+            if (list.getTotal() > 0) {
+                for (int i = last; i >= 1; i--) {
+                    fetchContracts(activity, i, (contracts, page) -> {
+                        if (page == 1) {
+                            Log.d("DONE", "will done");
+                        }
+                        contractList.addAll(contracts.getContracts());
+                        try {
+                            Thread.sleep(1);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                        Log.d("DONE", "Total: " + contractList.size());
+                    });
+                }
+            } else {
+                Log.d("VISIBLE", "will be visible");
+            }
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Looper.getMainLooper().quitSafely();
     }
 
 }

@@ -1,12 +1,11 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 30
-    buildToolsVersion "30.0.3"
+    compileSdkVersion 34
     defaultConfig {
         applicationId "com.github.sasergeev.example"
-        minSdkVersion 21
-        targetSdkVersion 30
+        minSdkVersion 26
+        targetSdkVersion 34
         versionCode 1
         versionName "0.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -26,27 +25,7 @@ android {
     }
 
     packagingOptions {
-
-        pickFirst '**'
-
-        pickFirst '**/META-INFMANIFEST.MF'
-
-        exclude 'META-INF/ASL2.0'
-
-        exclude 'META-INF/LICENSE'
-
-        exclude 'META-INF/license.txt'
-
-        exclude 'META-INF/NOTICE'
-
-        exclude 'META-INF/notice.txt'
-
-        exclude '/lib/mips64/**'
-
-        exclude '/lib/arm64-v8a/**'
-
-        exclude '/lib/x86_64/**'
-
+        exclude 'META-INF/*'
     }
 
 }
@@ -62,5 +41,8 @@ dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-core:2.9.8'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.9.8'
     implementation 'com.fasterxml.jackson.core:jackson-annotations:2.9.8'
+    debugImplementation 'com.squareup.leakcanary:leakcanary-android:1.6.2'
+    releaseImplementation 'com.squareup.leakcanary:leakcanary-android-no-op:1.6.2'
+    debugImplementation 'com.squareup.leakcanary:leakcanary-support-fragment:1.6.2'
     implementation project(':restclient')
 }

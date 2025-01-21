@@ -1,24 +1,6 @@
-
-buildscript {
-    repositories {
-        google()
-        jcenter()
-        mavenCentral()
-        mavenLocal()
-    }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:4.2.2'
-        classpath 'com.github.dcendents:android-maven-gradle-plugin:2.1'
-    }
-}
-
-allprojects {
-    repositories {
-        google()
-        jcenter()
-        mavenCentral()
-        mavenLocal()
-    }
+plugins {
+    id 'com.android.application' version '7.2.2' apply false
+    id 'com.google.gms.google-services' version '4.3.10' apply false
 }
 
 task clean(type: Delete) {

@@ -68,7 +68,7 @@ public class UI {
         progressBar.setIndeterminate(indeterminate);
     }
 
-    @BindingAdapter({"app:url"})
+    @BindingAdapter({"url"})
     public static void loadPicture(ImageView imageView, String url) {
         Picasso.with(imageView.getContext()).load(url).into(imageView);
     }
