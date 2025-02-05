@@ -1,8 +1,6 @@
-
 buildscript {
     repositories {
         google()
-        jcenter()
         mavenCentral()
         mavenLocal()
     }
@@ -15,9 +13,10 @@ buildscript {
 allprojects {
     repositories {
         google()
-        jcenter()
         mavenCentral()
         mavenLocal()
+        maven { url 'https://jitpack.io' }
+        maven { url 'https://repo.spring.io/milestone/' }
     }
 }
 
