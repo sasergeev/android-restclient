@@ -1,9 +1,5 @@
 package com.github.sasergeev.restclient;
 
-import static java.util.concurrent.Executors.newCachedThreadPool;
-
-import android.util.Patterns;
-
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpBasicAuthentication;
 import org.springframework.http.HttpEntity;
@@ -21,7 +17,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -29,35 +24,17 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
     private String queryUrl;
     private OnSuccess<T> onSuccess;
     private OnError onError;
-    /*private Runnable onExecute;
-    private Runnable onPreExecute;
-    private Runnable onPostExecute;
-    private Consumer<Integer> onProgress;
-    private BiConsumer<String, String> onDownload;
-    private BiConsumer<ByteArrayOutputStream, HttpHeaders> onFinished;*/
     private final Class<T> responseType;
-    private final ExecutorService executorService;
     private final HttpHeaders httpHeaders;
 
     private RestClient(Class<T> responseType) {
         super();
         this.responseType = responseType;
-        this.executorService = newCachedThreadPool();
         this.httpHeaders = new HttpHeaders();
     }
 
     public static <T extends Serializable> RestClient<T> build(Class<T> clazz) {
         return new RestClient<>(clazz);
-    }
-
-    protected void validate() {
-        StringBuilder stringBuilder = new StringBuilder();
-        if (!Patterns.WEB_URL.matcher(queryUrl).matches()) {
-            stringBuilder.append("Base url must be required and matches pattern");
-        }
-        if (stringBuilder.length() > 0) {
-            throw new IllegalStateException(stringBuilder.toString());
-        }
     }
 
     /**
@@ -122,7 +99,6 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
      */
     public RestClient<T> success(OnSuccess<T> onSuccess) {
         this.onSuccess = onSuccess;
-        this.executorService.shutdown();
         return this;
     }
 
@@ -131,7 +107,6 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
      */
     public RestClient<T> error(OnError onError) {
         this.onError = onError;
-        this.executorService.shutdown();
         return this;
     }
 
@@ -167,7 +142,7 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
     /**
      * Handle file path and content type
      */
-    public RestClient<T> doneDownload(BiConsumer<String, String> onDownload) {
+    public RestClient<T> onDownload(BiConsumer<String, String> onDownload) {
         setOnDownload(onDownload);
         return this;
     }
@@ -175,8 +150,8 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
     /**
      * Handle file path and content type
      */
-    public RestClient<T> finishDownload(BiConsumer<ByteArrayOutputStream, HttpHeaders> onFinished) {
-        setOnFinished(onFinished);
+    public RestClient<T> onLoad(BiConsumer<ByteArrayOutputStream, HttpHeaders> onLoad) {
+        setOnLoad(onLoad);
         return this;
     }
 
@@ -186,7 +161,7 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
     public RestClient<T> get(Object... params) {
         setMethod(HttpMethod.GET);
         setHttpHeaders(httpHeaders);
-        executorService.execute(() -> executeRequest(responseType, onSuccess, onError, params));
+        executeRequest(responseType, onSuccess, onError, params);
         return this;
     }
 
@@ -197,7 +172,7 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
         setMethod(HttpMethod.POST);
         this.httpHeaders.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         setHttpHeaders(httpHeaders);
-        executorService.execute(() -> executeRequest(body, responseType, onSuccess, onError, params));
+        executeRequest(body, responseType, onSuccess, onError, params);
         return this;
     }
 
@@ -208,7 +183,7 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
         setMethod(HttpMethod.POST);
         this.httpHeaders.setContentType(MediaType.APPLICATION_JSON);
         setHttpHeaders(httpHeaders);
-        executorService.execute(() -> executeRequest(body, responseType, onSuccess, onError, params));
+        executeRequest(body, responseType, onSuccess, onError, params);
         return this;
     }
 
@@ -219,7 +194,7 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
         setMethod(HttpMethod.POST);
         this.httpHeaders.setContentType(MediaType.APPLICATION_JSON);
         setHttpHeaders(httpHeaders);
-        executorService.execute(() -> executeRequest(body, responseType, onSuccess, onError, params));
+        executeRequest(body, responseType, onSuccess, onError, params);
         return this;
     }
 
@@ -230,17 +205,15 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
         setMethod(HttpMethod.POST);
         this.httpHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
         setHttpHeaders(httpHeaders);
-        executorService.execute(() -> {
-            MultiValueMap<String, Object> requestBody = new LinkedMultiValueMap<>();
-            HttpHeaders imageHeaders = new HttpHeaders();
-            imageHeaders.setContentType(mediaType);
-            Arrays.stream(resources).forEach(resource -> Optional.ofNullable(resource)
-                    .ifPresent(result -> requestBody.add(key, new HttpEntity<>(result, imageHeaders))));
-            HttpHeaders textHeaders = new HttpHeaders();
-            textHeaders.setContentType(new MediaType("application", "json", StandardCharsets.UTF_8));
-            body.forEach((k, v) -> requestBody.add(k, new HttpEntity<>(v, textHeaders)));
-            executeRequest(requestBody, responseType, onSuccess, onError);
-        });
+        MultiValueMap<String, Object> requestBody = new LinkedMultiValueMap<>();
+        HttpHeaders imageHeaders = new HttpHeaders();
+        imageHeaders.setContentType(mediaType);
+        Arrays.stream(resources).forEach(resource -> Optional.ofNullable(resource)
+                .ifPresent(result -> requestBody.add(key, new HttpEntity<>(result, imageHeaders))));
+        HttpHeaders textHeaders = new HttpHeaders();
+        textHeaders.setContentType(new MediaType("application", "json", StandardCharsets.UTF_8));
+        body.forEach((k, v) -> requestBody.add(k, new HttpEntity<>(v, textHeaders)));
+        executeRequest(requestBody, responseType, onSuccess, onError);
         return this;
     }
 
@@ -251,11 +224,9 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
         setMethod(HttpMethod.POST);
         this.httpHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
         setHttpHeaders(httpHeaders);
-        executorService.execute(() -> {
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            resources.forEach(resource -> Optional.ofNullable(resource).ifPresent(result -> body.add(key, result)));
-            executeRequest(body, responseType, onSuccess, onError, params);
-        });
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        resources.forEach(resource -> Optional.ofNullable(resource).ifPresent(result -> body.add(key, result)));
+        executeRequest(body, responseType, onSuccess, onError, params);
         return this;
     }
 
@@ -266,7 +237,7 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
         setMethod(HttpMethod.PUT);
         this.httpHeaders.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         setHttpHeaders(httpHeaders);
-        executorService.execute(() -> executeRequest(body, responseType, onSuccess, onError, params));
+        executeRequest(body, responseType, onSuccess, onError, params);
         return this;
     }
 
@@ -277,7 +248,7 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
         setMethod(HttpMethod.PUT);
         this.httpHeaders.setContentType(MediaType.APPLICATION_JSON);
         setHttpHeaders(httpHeaders);
-        executorService.execute(() -> executeRequest(body, responseType, onSuccess, onError, params));
+        executeRequest(body, responseType, onSuccess, onError, params);
         return this;
     }
 
@@ -288,7 +259,7 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
         setMethod(HttpMethod.PUT);
         this.httpHeaders.setContentType(MediaType.APPLICATION_JSON);
         setHttpHeaders(httpHeaders);
-        executorService.execute(() -> executeRequest(body, responseType, onSuccess, onError, params));
+        executeRequest(body, responseType, onSuccess, onError, params);
         return this;
     }
 
@@ -299,17 +270,15 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
         setMethod(HttpMethod.POST);
         this.httpHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
         setHttpHeaders(httpHeaders);
-        executorService.execute(() -> {
-            MultiValueMap<String, Object> requestBody = new LinkedMultiValueMap<>();
-            HttpHeaders imageHeaders = new HttpHeaders();
-            imageHeaders.setContentType(mediaType);
-            Arrays.stream(resources).forEach(resource -> Optional.ofNullable(resource)
-                    .ifPresent(result -> requestBody.add(key, new HttpEntity<>(result, imageHeaders))));
-            HttpHeaders textHeaders = new HttpHeaders();
-            textHeaders.setContentType(new MediaType("application", "json", StandardCharsets.UTF_8));
-            body.forEach((k, v) -> requestBody.add(k, new HttpEntity<>(v, textHeaders)));
-            executeRequest(requestBody, responseType, onSuccess, onError);
-        });
+        MultiValueMap<String, Object> requestBody = new LinkedMultiValueMap<>();
+        HttpHeaders imageHeaders = new HttpHeaders();
+        imageHeaders.setContentType(mediaType);
+        Arrays.stream(resources).forEach(resource -> Optional.ofNullable(resource)
+                .ifPresent(result -> requestBody.add(key, new HttpEntity<>(result, imageHeaders))));
+        HttpHeaders textHeaders = new HttpHeaders();
+        textHeaders.setContentType(new MediaType("application", "json", StandardCharsets.UTF_8));
+        body.forEach((k, v) -> requestBody.add(k, new HttpEntity<>(v, textHeaders)));
+        executeRequest(requestBody, responseType, onSuccess, onError);
         return this;
     }
 
@@ -320,11 +289,9 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
         setMethod(HttpMethod.PUT);
         this.httpHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
         setHttpHeaders(httpHeaders);
-        executorService.execute(() -> {
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            resources.forEach(resource -> Optional.ofNullable(resource).ifPresent(result -> body.add(key, result)));
-            executeRequest(body, responseType, onSuccess, onError, params);
-        });
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        resources.forEach(resource -> Optional.ofNullable(resource).ifPresent(result -> body.add(key, result)));
+        executeRequest(body, responseType, onSuccess, onError, params);
         return this;
     }
 
@@ -334,7 +301,7 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
     public RestClient<T> delete(Object... params) {
         setMethod(HttpMethod.DELETE);
         setHttpHeaders(httpHeaders);
-        executorService.execute(() -> executeRequest(responseType, onSuccess, onError, params));
+        executeRequest(responseType, onSuccess, onError, params);
         return this;
     }
 
@@ -343,15 +310,15 @@ public class RestClient<T extends Serializable> extends AbstractRestClient {
      */
     public void download(String filePath, Object... params) {
         setHttpHeaders(httpHeaders);
-        executorService.execute(() -> executeRequest(filePath, onError, executorService, params));
+        executeRequest(filePath, onError, params);
     }
 
     /**
      * Download file with some params
      */
-    public void download(Object... params) {
+    public void load(Object... params) {
         setHttpHeaders(httpHeaders);
-        executorService.execute(() -> executeRequest(onError, executorService, params));
+        executeRequest(onError, params);
     }
 
     @Override

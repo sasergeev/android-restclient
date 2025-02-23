@@ -1,10 +1,14 @@
 package com.github.sasergeev.restclient;
 
+import static java.util.concurrent.Executors.newCachedThreadPool;
+
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+
 import androidx.core.os.HandlerCompat;
+
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -17,6 +21,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
@@ -33,6 +38,7 @@ import java.util.function.Consumer;
 
 public abstract class AbstractRestClient {
 
+    private final ExecutorService executorService;
     private final RestTemplate restTemplate;
     private final Message message;
     private final Handler handler;
@@ -43,9 +49,10 @@ public abstract class AbstractRestClient {
     private Runnable after;
     private Consumer<Integer> onProgress;
     private BiConsumer<String, String> onDownload;
-    private BiConsumer<ByteArrayOutputStream, HttpHeaders> onFinished;
+    private BiConsumer<ByteArrayOutputStream, HttpHeaders> onLoad;
 
     public AbstractRestClient() {
+        this.executorService = newCachedThreadPool();
         this.restTemplate = new RestTemplate();
         this.message = Message.obtain();
         this.handler = HandlerCompat.createAsync(Looper.getMainLooper());
@@ -92,49 +99,51 @@ public abstract class AbstractRestClient {
         this.onDownload = onDownload;
     }
 
-    protected void setOnFinished(BiConsumer<ByteArrayOutputStream, HttpHeaders> onFinished) {
-        this.onFinished = onFinished;
+    protected void setOnLoad(BiConsumer<ByteArrayOutputStream, HttpHeaders> onLoad) {
+        this.onLoad = onLoad;
     }
 
     protected abstract String buildRequestUrl();
 
     protected void executeRequest(String filePath,
                                   OnError onError,
-                                  ExecutorService executor,
                                   Object... params) {
-        Optional.ofNullable(before).ifPresent(handler::post);
-        try {
-            Optional.ofNullable(execute).ifPresent(handler::post);
-            process(execute(params), filePath, onError, onProgress, onDownload);
-        } catch (HttpClientErrorException | HttpServerErrorException e) {
-            Optional.ofNullable(onError).
-                    ifPresent(error -> error.error(e.getMessage(), e.getResponseHeaders(), e.getStatusCode()));
-        } catch (ResourceAccessException e) {
-            Optional.ofNullable(onError).
-                    ifPresent(error -> error.error(e.getMessage(), null, HttpStatus.SERVICE_UNAVAILABLE));
-        } finally {
-            Optional.ofNullable(after).ifPresent(handler::post);
-            executor.shutdown();
-        }
+        executorService.execute(() -> {
+            Optional.ofNullable(before).ifPresent(handler::post);
+            try {
+                Optional.ofNullable(execute).ifPresent(handler::post);
+                process(execute(params), filePath, onError, onProgress, onDownload);
+            } catch (HttpClientErrorException | HttpServerErrorException e) {
+                Optional.ofNullable(onError).
+                        ifPresent(error -> error.error(e.getMessage(), e.getResponseHeaders(), e.getStatusCode()));
+            } catch (ResourceAccessException e) {
+                Optional.ofNullable(onError)
+                        .ifPresent(error -> error.error(e.getMessage(), null, HttpStatus.SERVICE_UNAVAILABLE));
+            } finally {
+                Optional.ofNullable(after).ifPresent(handler::post);
+                executorService.shutdown();
+            }
+        });
     }
 
     protected void executeRequest(OnError onError,
-                                  ExecutorService executor,
                                   Object... params) {
-        Optional.ofNullable(before).ifPresent(handler::post);
-        try {
-            Optional.ofNullable(execute).ifPresent(handler::post);
-            process(execute(params), onError, onFinished);
-        } catch (HttpClientErrorException | HttpServerErrorException e) {
-            Optional.ofNullable(onError).
-                    ifPresent(error -> error.error(e.getMessage(), e.getResponseHeaders(), e.getStatusCode()));
-        } catch (ResourceAccessException e) {
-            Optional.ofNullable(onError).
-                    ifPresent(error -> error.error(e.getMessage(), null, HttpStatus.SERVICE_UNAVAILABLE));
-        } finally {
-            Optional.ofNullable(after).ifPresent(handler::post);
-            executor.shutdown();
-        }
+        executorService.execute(() -> {
+            Optional.ofNullable(before).ifPresent(handler::post);
+            try {
+                Optional.ofNullable(execute).ifPresent(handler::post);
+                process(execute(params), onError, onLoad);
+            } catch (HttpClientErrorException | HttpServerErrorException e) {
+                Optional.ofNullable(onError).
+                        ifPresent(error -> error.error(e.getMessage(), e.getResponseHeaders(), e.getStatusCode()));
+            } catch (ResourceAccessException e) {
+                Optional.ofNullable(onError)
+                        .ifPresent(error -> error.error(e.getMessage(), null, HttpStatus.SERVICE_UNAVAILABLE));
+            } finally {
+                Optional.ofNullable(after).ifPresent(handler::post);
+                executorService.shutdown();
+            }
+        });
     }
 
     protected <S, T> void executeRequest(T body,
@@ -142,39 +151,44 @@ public abstract class AbstractRestClient {
                                          OnSuccess<S> onSuccess,
                                          OnError onError,
                                          Object... params) {
-        Optional.ofNullable(before).ifPresent(handler::post);
-        ResponseEntity<?> responseEntity = null;
-        try {
-            responseEntity = execute(httpMethod, body, responseType, params);
-            Optional.ofNullable(execute).ifPresent(handler::post);
-        } catch (HttpClientErrorException | HttpServerErrorException e) {
-            responseEntity = new ResponseEntity<>(e.getResponseBodyAsString(), e.getStatusCode());
-        } catch (ResourceAccessException e) {
-            responseEntity = new ResponseEntity<>(e.getMessage(), HttpStatus.SERVICE_UNAVAILABLE);
-        } finally {
-            Optional.ofNullable(responseEntity).ifPresent(this:: executeResponse);
-            handleMessage(message, responseType, onSuccess, onError);
-        }
+        executorService.execute(() -> {
+            Optional.ofNullable(before).ifPresent(handler::post);
+            ResponseEntity<?> responseEntity = null;
+            try {
+                responseEntity = execute(httpMethod, body, responseType, params);
+                Optional.ofNullable(execute).ifPresent(handler::post);
+            } catch (HttpClientErrorException | HttpServerErrorException e) {
+                responseEntity = new ResponseEntity<>(e.getResponseBodyAsString(), e.getStatusCode());
+            } catch (ResourceAccessException e) {
+                responseEntity = new ResponseEntity<>(e.getMessage(), HttpStatus.SERVICE_UNAVAILABLE);
+            } finally {
+                Optional.ofNullable(responseEntity).ifPresent(this:: executeResponse);
+                handleMessage(message, responseType, onSuccess, onError);
+                executorService.shutdown();
+            }
+        });
     }
 
     protected <S> void executeRequest(Class<S> responseType,
                                       OnSuccess<S> onSuccess,
                                       OnError onError,
                                       Object... params) {
-        Optional.ofNullable(before).ifPresent(handler::post);
-        ResponseEntity<?> responseEntity = null;
-        try {
-            responseEntity = execute(httpMethod, responseType, params);
-            Optional.ofNullable(execute).ifPresent(handler::post);
-        } catch (HttpClientErrorException | HttpServerErrorException e) {
-            responseEntity = new ResponseEntity<>(e.getResponseBodyAsString(), e.getStatusCode());
-        } catch (ResourceAccessException e) {
-            responseEntity = new ResponseEntity<>(e.getMessage(), HttpStatus.SERVICE_UNAVAILABLE);
-        } finally {
-            Optional.ofNullable(responseEntity)
-                    .ifPresent(this::executeResponse);
-            handleMessage(message, responseType, onSuccess, onError);
-        }
+        executorService.execute(() -> {
+            Optional.ofNullable(before).ifPresent(handler::post);
+            ResponseEntity<?> responseEntity = null;
+            try {
+                responseEntity = execute(httpMethod, responseType, params);
+                Optional.ofNullable(execute).ifPresent(handler::post);
+            } catch (HttpClientErrorException | HttpServerErrorException e) {
+                responseEntity = new ResponseEntity<>(e.getResponseBodyAsString(), e.getStatusCode());
+            } catch (ResourceAccessException e) {
+                responseEntity = new ResponseEntity<>(e.getMessage(), HttpStatus.SERVICE_UNAVAILABLE);
+            } finally {
+                Optional.ofNullable(responseEntity).ifPresent(this::executeResponse);
+                handleMessage(message, responseType, onSuccess, onError);
+                executorService.shutdown();
+            }
+        });
     }
 
     protected void setMethod(HttpMethod httpMethod) {
@@ -214,11 +228,11 @@ public abstract class AbstractRestClient {
         });
     }
 
-    protected void process(ResponseEntity<Resource> responseEntity,
-                           String filePath,
-                           OnError onError,
-                           Consumer<Integer> onProgress,
-                           BiConsumer<String, String> onDownload) {
+    private void process(ResponseEntity<Resource> responseEntity,
+                         String filePath,
+                         OnError onError,
+                         Consumer<Integer> onProgress,
+                         BiConsumer<String, String> onDownload) {
         try {
             MediaType mediaType = responseEntity.getHeaders().getContentType();
             String fileName = "file" + "_" + new Date().getTime() + "." + mediaType.getSubtype();
@@ -241,8 +255,8 @@ public abstract class AbstractRestClient {
                         handler.post(() -> onProgress.accept(finalProgress));
                     }
                 } catch (InterruptedException e) {
-                    Optional.ofNullable(onError).
-                            ifPresent(error -> error.error(e.getMessage(), responseEntity.getHeaders(), HttpStatus.INTERNAL_SERVER_ERROR));
+                    Optional.ofNullable(onError)
+                            .ifPresent(error -> error.error(e.getMessage(), responseEntity.getHeaders(), HttpStatus.INTERNAL_SERVER_ERROR));
                 }
             }
             outputStream.flush();
@@ -252,18 +266,18 @@ public abstract class AbstractRestClient {
                 Optional.ofNullable(onDownload)
                         .ifPresent(download -> handler.post(() -> download.accept(file, mediaType.toString())));
             } else {
-                Optional.ofNullable(onError).
-                        ifPresent(error -> error.error("Error while during downloading file", responseEntity.getHeaders(), HttpStatus.INTERNAL_SERVER_ERROR));
+                Optional.ofNullable(onError)
+                        .ifPresent(error -> error.error("Error while during downloading file", responseEntity.getHeaders(), HttpStatus.INTERNAL_SERVER_ERROR));
             }
         } catch (IOException e) {
-            Optional.ofNullable(onError).
-                    ifPresent(error -> error.error(e.getMessage(), responseEntity.getHeaders(), HttpStatus.INTERNAL_SERVER_ERROR));
+            Optional.ofNullable(onError)
+                    .ifPresent(error -> error.error(e.getMessage(), responseEntity.getHeaders(), HttpStatus.INTERNAL_SERVER_ERROR));
         }
     }
 
-    protected void process(ResponseEntity<Resource> responseEntity,
-                           OnError onError,
-                           BiConsumer<ByteArrayOutputStream, HttpHeaders> onFinished) {
+    private void process(ResponseEntity<Resource> responseEntity,
+                         OnError onError,
+                         BiConsumer<ByteArrayOutputStream, HttpHeaders> onLoad) {
         try {
             HttpHeaders httpHeaders = responseEntity.getHeaders();
             int size = (int) responseEntity.getBody().contentLength();
@@ -280,15 +294,15 @@ public abstract class AbstractRestClient {
             buffer.close();
             inputStream.close();
             if (total == size) {
-                Optional.ofNullable(onFinished)
-                        .ifPresent(finish -> handler.post(() -> finish.accept(buffer, httpHeaders)));
+                Optional.ofNullable(onLoad)
+                        .ifPresent(load -> handler.post(() -> load.accept(buffer, httpHeaders)));
             } else {
-                Optional.ofNullable(onError).
-                        ifPresent(error -> error.error("Error while during loading data", responseEntity.getHeaders(), HttpStatus.INTERNAL_SERVER_ERROR));
+                Optional.ofNullable(onError)
+                        .ifPresent(error -> error.error("Error while during loading data", responseEntity.getHeaders(), HttpStatus.INTERNAL_SERVER_ERROR));
             }
         } catch (IOException e) {
-            Optional.ofNullable(onError).
-                    ifPresent(error -> error.error(e.getMessage(), responseEntity.getHeaders(), HttpStatus.INTERNAL_SERVER_ERROR));
+            Optional.ofNullable(onError)
+                    .ifPresent(error -> error.error(e.getMessage(), responseEntity.getHeaders(), HttpStatus.INTERNAL_SERVER_ERROR));
         }
     }
 
